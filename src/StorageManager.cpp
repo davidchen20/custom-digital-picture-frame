@@ -67,62 +67,64 @@ bool StorageManager::begin(const char* ssid, const char* password) {
 }
 
 bool StorageManager::refreshPhotos() {
-  if (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[Cloud] Skipped: Wi-Fi not connected.");
     return false;
-  }
+    }
 
-  WiFiClientSecure client;
-  client.setInsecure(); // Skip TLS certificate verification for testing
+    // store it on the heap so my stack doesn't explode lol
+    auto client = std::unique_ptr<WiFiClientSecure>(new WiFiClientSecure());
+    auto http = std::unique_ptr<HTTPClient>(new HTTPClient());
 
-  HTTPClient http;
-  
-  Serial.printf("[HTTP] Connecting to API: %s\n", VERCEL_API);
-  
-  if (!http.begin(client, VERCEL_API)) {
+    client->setInsecure(); 
+
+    // HTTPClient http;
+
+    Serial.printf("[HTTP] Connecting to API: %s\n", VERCEL_API);
+
+    if (!http->begin(*client, VERCEL_API)) {
     Serial.println("[HTTP] Unable to connect to server endpoint.");
     return false;
-  }
-
-  // Handle Next.js / Vercel HTTPS redirects (307/308)
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(10000); // 10s timeout
-
-  int httpCode = http.GET();
-  Serial.printf("[HTTP] Response code: %d\n", httpCode);
-
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    Serial.printf("[HTTP] Payload received (%d bytes):\n%s\n", payload.length(), payload.c_str());
-
-    // 👈 ArduinoJson v7 syntax: simple JsonDocument replaces DynamicJsonDocument
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, payload);
-
-    if (err) {
-      Serial.printf("[JSON] Deserialization failed: %s\n", err.c_str());
-      http.end();
-      return false;
     }
 
-    photoList.clear();
-    JsonArray arr = doc.as<JsonArray>();
-    for (JsonVariant v : arr) {
-      String url = v.as<String>();
-      if (url.length() > 0) {
-        photoList.push_back(url);
-      }
+    // Handle Next.js / Vercel HTTPS redirects (307/308)
+    http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http->setTimeout(10000); // 10s timeout
+
+    int httpCode = http->GET();
+    Serial.printf("[HTTP] Response code: %d\n", httpCode);
+
+    if (httpCode == HTTP_CODE_OK) {
+        String payload = http->getString();
+        Serial.printf("[HTTP] Payload received (%d bytes):\n%s\n", payload.length(), payload.c_str());
+
+        std::unique_ptr<JsonDocument> doc(new JsonDocument());
+        DeserializationError err = deserializeJson(*doc, payload);
+
+        if (err) {
+            Serial.printf("[JSON] Deserialization failed: %s\n", err.c_str());
+            http->end();
+            return false;
+        }
+
+        photoList.clear();
+        JsonArray arr = doc->as<JsonArray>();
+        for (JsonVariant v : arr) {
+            String url = v.as<String>();
+            if (url.length() > 0) {
+            photoList.push_back(url);
+            }
+        }
+
+        http->end();
+        Serial.printf("[Cloud] Successfully loaded %d photo URL(s)!\n", (int)photoList.size());
+        return !photoList.empty();
+    } else {
+        Serial.printf("[HTTP] GET failed, error: %s\n", http->errorToString(httpCode).c_str());
     }
 
-    http.end();
-    Serial.printf("[Cloud] Successfully loaded %d photo URL(s)!\n", (int)photoList.size());
-    return !photoList.empty();
-  } else {
-    Serial.printf("[HTTP] GET failed, error: %s\n", http.errorToString(httpCode).c_str());
-  }
-
-  http.end();
-  return false;
+        http->end();
+        return false;
 }
 
 bool StorageManager::scanSdCard() {
@@ -161,18 +163,20 @@ bool StorageManager::streamPhoto(size_t index, std::function<void(Stream*)> onDa
 
   // CLOUD MODE STREAMING
   if (storageMode == StorageMode::CLOUD) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
+    // store it on the heap so my stack doesn't explode lol
+    auto client = std::unique_ptr<WiFiClientSecure>(new WiFiClientSecure());
+    auto http = std::unique_ptr<HTTPClient>(new HTTPClient());
 
-    if (http.begin(client, target)) {
-      if (http.GET() == HTTP_CODE_OK) {
-        WiFiClient* stream = http.getStreamPtr();
+    client->setInsecure();
+
+    if (http->begin(*client, target)) {
+      if (http->GET() == HTTP_CODE_OK) {
+        WiFiClient* stream = http->getStreamPtr();
         onDataReady(stream);
-        http.end();
+        http->end();
         return true;
       }
-      http.end();
+      http->end();
     }
   }
   // SD CARD MODE STREAMING

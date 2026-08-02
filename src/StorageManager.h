@@ -9,6 +9,7 @@
 #include <SD.h>
 #include <SPI.h>
 #include <vector>
+#include <memory>
 
 enum class StorageMode {
     CLOUD,
