@@ -8,29 +8,36 @@
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 
 class CustomLGFX : public lgfx::LGFX_Device {
-    public:
-        lgfx::Bus_RGB busInstance;
-        lgfx::Panel_RGB panelInstance;
+public:
+    lgfx::Bus_RGB busInstance;
+    lgfx::Panel_RGB panelInstance;
 
-        CustomLGFX();
+    CustomLGFX();
 };
 
 class DisplayManager {
-    private:
-        CustomLGFX lcd;
-        uint8_t backlightPin;
+private:
+    CustomLGFX lcd;
+    uint8_t backlightPin;
 
-    public:
-        DisplayManager(uint8_t backlightPin);
+public:
+    DisplayManager(uint8_t backlightPin);
 
-        void begin(uint8_t rotation = 1);
-        void setBacklight(bool enable);
-        void clear(uint32_t color = TFT_BLACK);
-        void showMessage(const char* text, uint16_t color = TFT_WHITE);
-        bool renderCenteredBMP(fs::FS &fs, const char *filename);
-        
-        int32_t getWidth() const { return lcd.width(); }
-        int32_t getHeight() const { return lcd.height(); }
+    void begin(uint8_t rotation = 1);
+    void setBacklight(bool enable);
+    void clear(uint32_t color = TFT_BLACK);
+    void showMessage(const char* text, uint16_t color = TFT_WHITE);
+    
+    // Legacy file-path method (kept for local SD compatibility)
+    bool renderCenteredBMP(fs::FS &fs, const char *filename);
+    
+    // NEW: Generic stream renderer for Cloud socket or SD File stream
+    bool drawBmpStream(Stream* stream) {
+        return lcd.drawBmp(stream, 0, 0);
+    }
+    
+    int32_t getWidth() const { return lcd.width(); }
+    int32_t getHeight() const { return lcd.height(); }
 };
 
 #endif

@@ -3,46 +3,49 @@
 PhotoFrame::PhotoFrame(DisplayManager &disp, StorageManager &stor, unsigned long interval, bool isShuffle)
   : display(disp), storage(stor), intervalMs(interval), shuffle(isShuffle), lastChangeTime(0), currentIndex(0) {}
 
-bool PhotoFrame::begin() {
+bool PhotoFrame::begin(const char* ssid, const char* password) {
   display.begin(1);
-  display.showMessage("Mounting SD Card...");
+  display.showMessage("Initializing Storage...");
 
-  if (!storage.begin()) {
-    display.showMessage("Failed to Mount SD!", TFT_RED);
+  if (!storage.begin(ssid, password)) {
+    display.showMessage("No Photos Found (Wi-Fi & SD Failed)", TFT_RED);
     return false;
   }
 
-  display.showMessage("Scanning SD for images...");
-  size_t count = storage.indexImages();
-
-  if (count == 0) {
-    display.showMessage("No BMP images found!", TFT_RED);
-    return false;
+  if (storage.getMode() == StorageMode::CLOUD) {
+    display.showMessage("Mode: Cloud Active", TFT_GREEN);
+  } else {
+    display.showMessage("Mode: Offline SD Card", TFT_YELLOW);
   }
-
-  nextImage(); // Load initial frame
+  
+  delay(1000);
+  nextImage(); // Display first frame
   return true;
 }
 
 void PhotoFrame::update() {
-  const std::vector<String>& files = storage.getImages();
-  if (files.empty()) return;
+  if (storage.getPhotoCount() == 0) return;
 
   if (millis() - lastChangeTime >= intervalMs) {
+    storage.refreshPhotos(); // Refresh links/files if needed
     nextImage();
   }
 }
 
 void PhotoFrame::nextImage() {
-  const std::vector<String>& files = storage.getImages();
-  if (files.empty()) return;
+  size_t count = storage.getPhotoCount();
+  if (count == 0) return;
 
   if (shuffle) {
-    currentIndex = random(0, files.size());
+    currentIndex = random(0, count);
   } else {
-    currentIndex = (currentIndex + 1) % files.size();
+    currentIndex = (currentIndex + 1) % count;
   }
 
-  display.renderCenteredBMP(storage.getFS(), files[currentIndex].c_str());
+  // Stream raw bytes directly to LovyanGFX
+  storage.streamPhoto(currentIndex, [this](Stream* stream) {
+    display.drawBmpStream(stream);
+  });
+
   lastChangeTime = millis();
 }

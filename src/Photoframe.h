@@ -17,9 +17,10 @@ private:
 public:
   PhotoFrame(DisplayManager &disp, StorageManager &stor, unsigned long interval = 5000, bool isShuffle = true);
 
-  bool begin();
+  bool begin(const char* ssid, const char* password);
   void update();
   void nextImage();
+  
   void setShuffle(bool enable) { shuffle = enable; }
   void setInterval(unsigned long ms) { intervalMs = ms; }
 };

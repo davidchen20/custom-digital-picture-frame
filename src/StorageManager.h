@@ -2,25 +2,40 @@
 #define STORAGE_MANAGER_H
 
 #include <Arduino.h>
-#include <SPI.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include <SD.h>
+#include <SPI.h>
 #include <vector>
+
+enum class StorageMode {
+    CLOUD,
+    SD_CARD,
+    NONE
+};
 
 class StorageManager {
 private:
-  uint8_t pinCS, pinMOSI, pinMISO, pinSCK;
-  SPIClass sdSPI;
-  std::vector<String> fileList;
+    const char* apiUrl;
+    int sdCsPin;
+    StorageMode storageMode;
 
-  void scanDirectory(File dir, const String& parentPath = "");
+    std::vector<String> photoList;
+
+  bool scanSdCard();
 
 public:
-  StorageManager(uint8_t cs, uint8_t mosi, uint8_t miso, uint8_t sck);
+  StorageManager(const char* apiUrl, int sdCsPin = 10);
   
-  bool begin(uint32_t frequency = 10000000);
-  size_t indexImages();
-  const std::vector<String>& getImages() const { return fileList; }
-  fs::FS& getFS() { return SD; }
+  bool begin(const char* ssid, const char* password);
+  bool refreshPhotos();
+
+  StorageMode getMode() const { return storageMode; }
+  size_t getPhotoCount() const;
+
+  bool streamPhoto(size_t index, std::function<void(Stream*)> onDataReady);
 };
 
 #endif
